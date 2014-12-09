@@ -4,6 +4,8 @@ import os
 import time
 import glob
 import urllib2
+from StringIO import StringIO
+import gzip
 
 gCacheDir = ""
 gCacheSize = 100
@@ -26,18 +28,21 @@ def CheckCacheDir():
 #==============================================================================
 
 def GetURLNoCache(url):
-    req = urllib2.Request(url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
-    req.add_header('Referer',    'http://www.watchcartoononline.com/')
-    response = urllib2.urlopen(req)
-    html = response.read()
+    request = urllib2.Request(url)
+    request.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
+    request.add_header('Referer',    'http://www.watchcartoononline.com/')
+    request.add_header('Accept-encoding', 'gzip')
+    response = urllib2.urlopen(request)
+    data = response.read()
     response.close()
-    return html
+    if response.info().get('Content-Encoding') == 'gzip':
+      data = gzip.GzipFile(fileobj=StringIO(data)).read()
+    return data;
 
 #==============================================================================
 
 #return is data, and whether it is in the cache
-def GetURL(url, maxSecs = 0, cacheOnly = False):        
+def GetURL(url, maxSecs = 0, cacheOnly = False):
     if url == None:
         return None, True
 
@@ -48,12 +53,12 @@ def GetURL(url, maxSecs = 0, cacheOnly = False):
 	if cachedURLTimestamp > 0:
 	    if (time.time() - cachedURLTimestamp) <= maxSecs:
 		return CacheGetData(url), True
-	
+
     if cacheOnly:
         return None, False
 
     data = GetURLNoCache(url)
-    CacheAdd(url, data)    
+    CacheAdd(url, data)
     return data, True
 
 #==============================================================================
@@ -109,13 +114,13 @@ def CacheTrim():
     nFiles = len(files)
 
     try:
-        while nFiles > gCacheSize:            
+        while nFiles > gCacheSize:
             #if len(files) <= gCacheSize:
             #    return
 
             oldestFile        = GetOldestFile(files)
             cacheFileFullPath = os.path.join(gCacheDir, oldestFile)
- 
+
             while os.path.exists(cacheFileFullPath):
                 os.remove(cacheFileFullPath)
 
@@ -129,7 +134,7 @@ def CacheTrim():
 def GetOldestFile(files):
     if not files:
         return None
-    
+
     now    = time.time()
     oldest = files[0], now - os.path.getctime(files[0])
 
